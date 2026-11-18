@@ -1,0 +1,33 @@
+ARG CHUNKAH_CONFIG_STR
+
+# Base stage:
+# Use the python image as the base
+FROM registry.access.redhat.com/hi/python:3.14 AS base
+
+
+# Builder stage:
+# Use the builder variant to install additional packages into the base image root file system
+FROM registry.access.redhat.com/hi/python:3.14-builder AS builder
+USER 0
+COPY --from=base / /target/
+RUN dnf install -y --installroot=/target --use-host-config \
+        --nodocs --setopt=install_weak_deps=False libpq \
+    && dnf clean all --installroot=/target
+
+
+# Chunkah stage:
+# Create layers and apply configuration from the base image
+FROM registry.access.redhat.com/hi/chunkah:latest AS chunked
+USER 0
+ARG CHUNKAH_CONFIG_STR
+RUN --mount=type=bind,target=/run/src,rw \
+    --mount=type=bind,from=builder,source=/target,target=/chunkah,ro \
+    ["/usr/bin/chunkah", "build", "--rootfs", "/chunkah", "--output", "oci:/run/src/out"]
+
+
+# Runtime stage:
+# Use the resulting image and add the application
+FROM oci:out
+COPY example.py /app/
+WORKDIR /app
+CMD ["python3", "example.py"]

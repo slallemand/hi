@@ -1,0 +1,4 @@
+FROM company-python-base:3.14
+COPY example.py /app/
+WORKDIR /app
+CMD ["python3", "example.py"]

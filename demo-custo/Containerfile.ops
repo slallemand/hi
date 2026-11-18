@@ -1,0 +1,19 @@
+ARG CHUNKAH_CONFIG_STR
+
+FROM registry.access.redhat.com/hi/python:3.14 AS base
+
+FROM registry.access.redhat.com/hi/python:3.14-builder AS builder
+USER 0
+COPY --from=base / /target/
+RUN dnf install -y --installroot=/target --use-host-config \
+        --nodocs --setopt=install_weak_deps=False libpq \
+    && dnf clean all --installroot=/target
+
+FROM registry.access.redhat.com/hi/chunkah:latest AS chunked
+USER 0
+ARG CHUNKAH_CONFIG_STR
+RUN --mount=type=bind,target=/run/src,rw \
+    --mount=type=bind,from=builder,source=/target,target=/chunkah,ro \
+    ["/usr/bin/chunkah", "build", "--rootfs", "/chunkah", "--output", "oci:/run/src/out"]
+
+FROM oci:out
