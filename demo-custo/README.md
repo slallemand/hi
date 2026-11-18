@@ -37,8 +37,8 @@ Ce banc de démonstration illustre la répartition des rôles et des responsabil
 ## 2. Prérequis locaux
 
 * **Podman** (`podman machine start`)
-* **Syft** (`brew install syft`)
-* **Cosign** (`brew install cosign`)
+* **Syft**
+* **Cosign**
 
 ---
 
@@ -47,7 +47,6 @@ Ce banc de démonstration illustre la répartition des rôles et des responsabil
 Un script interactif pas-à-pas est fourni :
 
 ```bash
-cd /Users/slallema/GIT/github.com/slallemand/hi/demo-custo
 ./demo.sh
 ```
 
