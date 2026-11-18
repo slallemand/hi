@@ -12,6 +12,8 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 REDHAT_BASE_IMAGE="registry.access.redhat.com/hi/python:3.14"
+REDHAT_BUILDER_IMAGE="registry.access.redhat.com/hi/python:3.14-builder"
+REDHAT_CHUNKAH_IMAGE="registry.access.redhat.com/hi/chunkah:latest"
 REDHAT_PUBLIC_KEY="https://security.access.redhat.com/data/63405576.txt"
 COMPANY_BASE_IMAGE="company-python-base:3.14"
 DEV_APP_IMAGE="my-python-app:latest"
@@ -40,14 +42,29 @@ echo -e "Responsabilité Red Hat :"
 echo -e "  * Fournir une base minimale d'exécution (Distroless, non-root, sans shell)."
 echo -e "  * Signer cryptographiquement l'image et publier le SBOM officiel de la release."
 
-step "1.1. Vérification cryptographique de la signature avec Cosign"
+step "1.1. Vérification cryptographique des signatures Red Hat (Base, Builder & Chunkah)"
 echo -e "Clé publique officielle : ${REDHAT_PUBLIC_KEY}"
-if cosign verify --key "${REDHAT_PUBLIC_KEY}" --insecure-ignore-tlog "${REDHAT_BASE_IMAGE}" > /tmp/cosign-verify.json 2>&1; then
-    echo -e "${GREEN}[OK] Signature officielle Red Hat vérifiée et validée avec succès !${NC}"
-    echo -e "Preuve de l'attestation cryptographique :"
-    grep -E "(critical|docker-manifest-digest|type)" /tmp/cosign-verify.json | head -n 4 || head -n 6 /tmp/cosign-verify.json
+echo -e "Note sur registre miroir interne : utiliser '--check-claims=false' si l'image est copiée."
+
+echo -e "\n1. Vérification de l'image Runtime socle (${REDHAT_BASE_IMAGE}) :"
+if cosign verify --key "${REDHAT_PUBLIC_KEY}" --insecure-ignore-tlog "${REDHAT_BASE_IMAGE}" > /tmp/cosign-base.json 2>&1; then
+    echo -e "   ${GREEN}[OK] Signature Runtime certifiée Red Hat validée.${NC}"
 else
-    echo -e "${YELLOW}[!] Impossible de vérifier la signature en ligne.${NC}"
+    echo -e "   ${YELLOW}[!] Échec de vérification Runtime.${NC}"
+fi
+
+echo -e "2. Vérification de l'image Builder (${REDHAT_BUILDER_IMAGE}) :"
+if cosign verify --key "${REDHAT_PUBLIC_KEY}" --insecure-ignore-tlog "${REDHAT_BUILDER_IMAGE}" > /tmp/cosign-builder.json 2>&1; then
+    echo -e "   ${GREEN}[OK] Signature Builder validée (garantie d'intégrité de dnf et des outils de build).${NC}"
+else
+    echo -e "   ${YELLOW}[!] Échec de vérification Builder.${NC}"
+fi
+
+echo -e "3. Vérification de l'image utilitaire Chunkah (${REDHAT_CHUNKAH_IMAGE}) :"
+if cosign verify --key "${REDHAT_PUBLIC_KEY}" --insecure-ignore-tlog "${REDHAT_CHUNKAH_IMAGE}" > /tmp/cosign-chunkah.json 2>&1; then
+    echo -e "   ${GREEN}[OK] Signature Chunkah validée (outil de packaging OCI certifié).${NC}"
+else
+    echo -e "   ${YELLOW}[!] Échec de vérification Chunkah.${NC}"
 fi
 
 step "1.2. Téléchargement du SBOM officiel signé par Red Hat via Cosign"

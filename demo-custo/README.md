@@ -55,15 +55,33 @@ Un script interactif pas-à-pas est fourni :
 ## 4. Détail des étapes du workflow
 
 ### Rôle 1 : Red Hat (Éditeur)
-* **Vérification cryptographique de la signature :** Validation de l'intégrité et de la provenance avec Cosign contre la clé publique officielle Red Hat :
+* **Vérification cryptographique des signatures (Base, Builder & Chunkah) :** Validation de l'intégrité et de la provenance avec Cosign contre la clé publique officielle Red Hat pour toutes les briques utilisées :
   ```bash
   cosign verify \
     --key "https://security.access.redhat.com/data/63405576.txt" \
     --insecure-ignore-tlog \
-    registry.access.redhat.com/hi/python:3.14
+    registry.access.redhat.com/hi/python:3.14 \
+    registry.access.redhat.com/hi/python:3.14-builder \
+    registry.access.redhat.com/hi/chunkah:latest
   ```
-* **Garantie :** Image minimale hermétique (`registry.access.redhat.com/hi/python:3.14`), non-root (`UID 65532`), aucun shell interactif (`sh` / `bash` absents).
+* **Garantie :** Image minimale hermétique (`registry.access.redhat.com/hi/python:3.14`), non-root (`UID 65532`), aucun shell interactif (`sh` / `bash` absents), et outils de build (`-builder` et `chunkah`) certifiés non altérés.
 * **SBOM officiel :** Rapatrié via Cosign (`cosign download sbom registry.access.redhat.com/hi/python:3.14`).
+
+> **Cas d'usage : Registre miroir interne (Air-gap / DMZ)**
+> 1. **Copie des signatures :** Lors de la réplication vers un registre interne (Quay, ACR, Harbor), il est indispensable de copier l'image **ET** ses artefacts Sigstore :
+>    ```bash
+>    cosign copy registry.access.redhat.com/hi/python:3.14 mon-registre.corp/hi/python:3.14
+>    # ou via skopeo en copiant le tag de signature sha256-<digest>.sig
+>    ```
+> 2. **Vérification sur le miroir (`--check-claims=false`) :** La signature d'origine contient le claim `docker-reference: registry.access.redhat.com/...`. Pour valider la signature sur le miroir interne sans bloquer sur le changement de nom d'hôte :
+>    ```bash
+>    cosign verify \
+>      --key "https://security.access.redhat.com/data/63405576.txt" \
+>      --insecure-ignore-tlog \
+>      --check-claims=false \
+>      mon-registre.corp/hi/python:3.14
+>    ```
+> 3. **Pratique d'entreprise recommandée (Sas d'ingestion) :** Valider la signature Red Hat à l'entrée (DMZ), puis signer l'image interne avec la clé KMS d'entreprise lors de l'admission dans le registre privé.
 
 ### Rôle 2 : Équipe Ops / Socle (Golden Image avec Chunkah)
 * **Problème :** L'application a besoin du driver `libpq`. Impossible de faire `dnf install` dans une image distroless.
@@ -96,3 +114,9 @@ Un script interactif pas-à-pas est fourni :
   podman run --rm localhost/my-python-app:latest
   ```
 * **Résultat :** `example.py` charge dynamiquement `libpq.so.5` avec succès, tout en restant strictement non-root et sans shell utilisable pour une attaque.
+
+---
+
+## 5. Documentation approfondie
+
+* Pour une analyse d'architecture détaillée (rupture avec l'instruction-based, fonctionnement interne, gestion de la rpmdb, arbitrage UBI vs Hardened Images) : voir [Article d'architecture : Chunkah & Content-Based Layering](./chunkah-content-based-layering.md).
